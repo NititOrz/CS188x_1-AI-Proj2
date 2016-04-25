@@ -191,7 +191,8 @@ class MinimaxAgent(MultiAgentSearchAgent):
             nextState = gameState.generateSuccessor(0,action)
             v = max(v, MinValue(nextState, depth , 1, numGhost))
           return v
-
+        score = -float('Inf')
+        bestaction = []
         legalMoves = gameState.getLegalActions()
         bestAction = Directions.STOP
         numGhosts = gameState.getNumAgents() - 1
@@ -207,6 +208,8 @@ class MinimaxAgent(MultiAgentSearchAgent):
         "Add more of your code here if you want to"
 
         util.raiseNotDefined()
+ 
+# Don't know where is bug in this code. 
 
 # class AlphaBetaAgent(MultiAgentSearchAgent):
 #     """
@@ -360,6 +363,67 @@ class ExpectimaxAgent(MultiAgentSearchAgent):
     """
       Your expectimax agent (question 4)
     """
+    def maxValue(self, gameState, depth, agentIndex):
+      # init the variables
+      maxEval= float("-inf")
+
+      # if this is a leaf node with no more actions, return the evaluation function at this state
+      if gameState.isWin() or gameState.isLose():
+        return self.evaluationFunction(gameState)
+
+      # otherwise, for evert action, find the successor, and run the minimize function on it. when a value
+      # is returned, check to see if it's a new max value (or if it's bigger than the minimizer's best, then prune)
+      for action in gameState.getLegalActions(0):
+        successor = gameState.generateSuccessor(0, action)
+        
+        # run minimize (the minimize function will stack ghost responses)
+        tempEval = self.expMax(successor, depth, 1)
+
+        if tempEval > maxEval:
+          maxEval = tempEval
+          maxAction = action
+
+      # if this is the first depth, then we're trying to return an ACTION to take. otherwise, we're returning a number. This
+      # could theoretically be a tuple with both, but i'm lazy.
+      if depth == 1:
+        return maxAction
+      else:
+        return maxEval
+
+
+
+    def expMax(self, gameState, depth, agentIndex):
+      expEval= 0
+
+      # we don't know how many ghosts there are, so we have to run minimize
+      # on a general case based off the number of agents
+      numAgents = gameState.getNumAgents()
+      # if a leaf node, return the eval function!
+      if gameState.isWin() or gameState.isLose():
+        return self.evaluationFunction(gameState)
+
+      legalActions = gameState.getLegalActions(agentIndex)
+      prob = 1.0/len(legalActions)
+      # for every move possible by this ghost
+      for action in legalActions:
+        successor = gameState.generateSuccessor(agentIndex, action)
+      
+        # if this is the last ghost to minimize
+        if agentIndex == numAgents - 1:
+          # if we are at our depth limit, return the eval function
+          if depth == self.depth:
+            tempEval = self.evaluationFunction(successor)
+          else:
+            #maximize!
+            tempEval = self.maxValue(successor, depth+1, 0)
+
+        # pass this state on to the next ghost
+        else:
+          tempEval = self.expMax(successor, depth, agentIndex+1)
+
+        expEval += tempEval*prob
+
+      return expEval
 
     def getAction(self, gameState):
         """
@@ -369,6 +433,7 @@ class ExpectimaxAgent(MultiAgentSearchAgent):
           legal moves.
         """
         "*** YOUR CODE HERE ***"
+        return self.maxValue(gameState,1,0)
 
         util.raiseNotDefined()
 
@@ -380,6 +445,34 @@ def betterEvaluationFunction(currentGameState):
       DESCRIPTION: <write something here so we know what you did>
     """
     "*** YOUR CODE HERE ***"
+    foodMx = currentGameState.getFood()
+    ghostStates = currentGameState.getGhostStates()
+    position = currentGameState.getPacmanPosition()
+    foodcount = currentGameState.getNumFood()
+    score = currentGameState.getScore()
+
+    nearestGhostDistance = float("inf")
+
+    # evaluate the current state of the ghosts
+    ghostEval = 0
+    for ghost in ghostStates:
+      ghostPosition = (int(ghost.getPosition()[0]), int(ghost.getPosition()[1]))
+      md = manhattanDistance(position, ghostPosition)
+
+      if ghost.scaredTimer == 0:
+        if md < nearestGhostDistance:
+          nearestGhostDistance = md
+      #for scared ghosts, evaluate them as 200 points, minus the distance they are away.
+      elif ghost.scaredTimer != 0:
+        ghostEval += 100 - md
+
+    if nearestGhostDistance == float("inf") or nearestGhostDistance < 2:
+      nearestGhostDistance = 0
+
+    ghostEval += nearestGhostDistance
+
+
+    return score - 10*foodcount + 1*ghostEval 
     util.raiseNotDefined()
 
 # Abbreviation
